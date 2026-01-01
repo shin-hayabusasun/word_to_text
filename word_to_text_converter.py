@@ -80,13 +80,15 @@ def convert_docx_to_text(docx_path, output_path=None):
         print(f"変換エラー（{docx_path}）: {str(e)}")
         return None
 
-def convert_doc_to_text(doc_path, output_path=None):
+def convert_doc_to_text(doc_path, output_path=None, force_utf8=False, use_sjis=False):
     """
     古い形式の.docファイルをテキストファイルに変換する
     
     Args:
         doc_path (str): 変換するdocファイルのパス
         output_path (str, optional): 出力先のパス。指定がない場合は同じ場所に.txtファイルを作成
+        force_utf8 (bool): UTF-8エンコーディングを優先的に使用するかどうか
+        use_sjis (bool): Shift-JISエンコーディングを優先的に使用するかどうか
     
     Returns:
         str: 作成されたテキストファイルのパス
@@ -95,6 +97,105 @@ def convert_doc_to_text(doc_path, output_path=None):
         # 出力パスが指定されていない場合は入力ファイルと同じ場所に.txtを作成
         if output_path is None:
             output_path = str(Path(doc_path).with_suffix('.txt'))
+        
+        # Shift-JIS優先モードの場合
+        if use_sjis:
+            print(f"Shift-JIS優先モードで変換を試みます（{doc_path}）...")
+            try:
+                # バイナリモードでファイルを開く
+                with open(doc_path, 'rb') as f:
+                    content = f.read()
+                
+                # Shift-JISでデコードを試みる
+                try:
+                    text = content.decode('shift_jis', errors='ignore')
+                    
+                    # 日本語文字が含まれているか確認
+                    jp_chars = re.findall(r'[ぁ-んァ-ヶ一-龠々〆〜]', text)
+                    jp_ratio = len(jp_chars) / max(len(text), 1)
+                    
+                    print(f"  Shift-JISデコード: テキスト長={len(text)}, 日本語文字数={len(jp_chars)}, 比率={jp_ratio:.2%}")
+                    
+                    # 不要なバイナリデータやノイズを除去
+                    text = re.sub(r'[^\x20-\x7E\u3000-\u30FF\u4E00-\u9FFF\u3040-\u309F\uFF00-\uFF9F\u2000-\u206F\n]+', '', text)
+                    text = re.sub(r'[\x00-\x1F\x7F]', '', text)  # 制御文字を除去
+                    
+                    # XMLタグのような文字列を削除
+                    text = re.sub(r'<[^>]+>', '', text)
+                    
+                    # テキストファイルに書き込む
+                    with open(output_path, 'w', encoding='shift_jis', errors='ignore') as out_file:
+                        out_file.write(text)
+                    
+                    print(f"Shift-JISによる変換完了: {output_path}")
+                    return output_path
+                except Exception as sjis_error:
+                    print(f"Shift-JISでの変換に失敗: {str(sjis_error)}")
+                
+                # cp932（Windows版Shift-JIS）での処理
+                try:
+                    text = content.decode('cp932', errors='ignore')
+                    
+                    # 日本語文字が含まれているか確認
+                    jp_chars = re.findall(r'[ぁ-んァ-ヶ一-龠々〆〜]', text)
+                    jp_ratio = len(jp_chars) / max(len(text), 1)
+                    
+                    print(f"  CP932デコード: テキスト長={len(text)}, 日本語文字数={len(jp_chars)}, 比率={jp_ratio:.2%}")
+                    
+                    # 不要なバイナリデータやノイズを除去
+                    text = re.sub(r'[^\x20-\x7E\u3000-\u30FF\u4E00-\u9FFF\u3040-\u309F\uFF00-\uFF9F\u2000-\u206F\n]+', '', text)
+                    text = re.sub(r'[\x00-\x1F\x7F]', '', text)  # 制御文字を除去
+                    
+                    # XMLタグのような文字列を削除
+                    text = re.sub(r'<[^>]+>', '', text)
+                    
+                    # テキストファイルに書き込む
+                    with open(output_path, 'w', encoding='shift_jis', errors='ignore') as out_file:
+                        out_file.write(text)
+                    
+                    print(f"CP932による変換完了: {output_path}")
+                    return output_path
+                except Exception as cp932_error:
+                    print(f"CP932での変換に失敗: {str(cp932_error)}")
+                
+                print("Shift-JISでの変換に失敗しました。通常の変換処理を続行します...")
+            except Exception as e:
+                print(f"Shift-JIS変換エラー: {str(e)}")
+                print("通常の変換処理を続行します...")
+        
+        # UTF-8優先モードの場合
+        elif force_utf8:
+            print(f"UTF-8優先モードで変換を試みます（{doc_path}）...")
+            try:
+                # バイナリモードでファイルを開く
+                with open(doc_path, 'rb') as f:
+                    content = f.read()
+                
+                # UTF-8でデコードを試みる
+                text = content.decode('utf-8', errors='ignore')
+                
+                # 日本語文字が含まれているか確認
+                jp_chars = re.findall(r'[ぁ-んァ-ヶ一-龠々〆〜]', text)
+                jp_ratio = len(jp_chars) / max(len(text), 1)
+                
+                print(f"  UTF-8デコード: テキスト長={len(text)}, 日本語文字数={len(jp_chars)}, 比率={jp_ratio:.2%}")
+                
+                # 不要なバイナリデータやノイズを除去
+                text = re.sub(r'[^\x20-\x7E\u3000-\u30FF\u4E00-\u9FFF\u3040-\u309F\uFF00-\uFF9F\u2000-\u206F\n]+', '', text)
+                text = re.sub(r'[\x00-\x1F\x7F]', '', text)  # 制御文字を除去
+                
+                # XMLタグのような文字列を削除
+                text = re.sub(r'<[^>]+>', '', text)
+                
+                # テキストファイルに書き込む
+                with open(output_path, 'w', encoding='utf-8') as out_file:
+                    out_file.write(text)
+                
+                print(f"UTF-8による変換完了: {output_path}")
+                return output_path
+            except Exception as e:
+                print(f"UTF-8での変換に失敗: {str(e)}")
+                print("通常の変換処理を続行します...")
         
         # 複数の変換方法を順番に試す（優先度順）
         methods = [
@@ -304,14 +405,20 @@ def extract_japanese_text_enhanced(doc_path, output_path):
             if text_chunks:
                 unique_chunks = []
                 for chunk in text_chunks:
-                    if not any(chunk in uc for uc in unique_chunks):
-                        unique_chunks.append(chunk)
+                    # 重複チェックを厳密化し、長すぎる部分は除外（HTMLや制御文字の可能性）
+                    if not any(chunk in uc for uc in unique_chunks) and len(chunk) < 2000:
+                        # バイナリノイズらしき文字列を除外
+                        if not re.search(r'[^\x20-\x7E\u3000-\u30FF\u4E00-\u9FFF\u3040-\u309F\uFF00-\uFF9F\u2000-\u206F\n]{10,}', chunk):
+                            unique_chunks.append(chunk)
                 
-                utf16_text = '\n'.join(unique_chunks)
+                utf16_text = '\n\n'.join(unique_chunks)
                 
                 # 不要なバイナリデータやノイズを除去
                 utf16_text = re.sub(r'[^\x20-\x7E\u3000-\u30FF\u4E00-\u9FFF\u3040-\u309F\uFF00-\uFF9F\u2000-\u206F\n]+', '', utf16_text)
                 utf16_text = re.sub(r'[\x00-\x1F\x7F]', '', utf16_text)  # 制御文字を除去
+                
+                # XMLタグのような文字列を削除
+                utf16_text = re.sub(r'<[^>]+>', '', utf16_text)
                 
                 # 日本語比率を計算
                 jp_chars = re.findall(r'[ぁ-んァ-ヶ一-龠々〆〜]', utf16_text)
@@ -341,8 +448,12 @@ def extract_japanese_text_enhanced(doc_path, output_path):
                     
                     for line in lines:
                         clean_line = re.sub(r'[\x00-\x1F\x7F]', '', line)  # 制御文字を除去
-                        if re.search(r'[ぁ-んァ-ヶ一-龠々〆〜]', clean_line) and len(clean_line.strip()) > 3:
-                            meaningful_lines.append(clean_line)
+                        # XMLやHTMLタグのような文字列を除去
+                        clean_line = re.sub(r'<[^>]+>', '', clean_line)
+                        # 明らかなバイナリデータを含む行は除外
+                        if not re.search(r'[^\x20-\x7E\u3000-\u30FF\u4E00-\u9FFF\u3040-\u309F\uFF00-\uFF9F\u2000-\u206F\n]{10,}', clean_line):
+                            if re.search(r'[ぁ-んァ-ヶ一-龠々〆〜]', clean_line) and len(clean_line.strip()) > 3:
+                                meaningful_lines.append(clean_line)
                     
                     if meaningful_lines:
                         clean_text = '\n'.join(meaningful_lines)
@@ -371,9 +482,11 @@ def extract_japanese_text_enhanced(doc_path, output_path):
             # 重複行を除去
             lines = best_text.splitlines()
             unique_lines = []
+            seen_lines = set()
             for line in lines:
                 clean_line = line.strip()
-                if clean_line and clean_line not in unique_lines:
+                if clean_line and clean_line not in seen_lines:
+                    seen_lines.add(clean_line)
                     unique_lines.append(clean_line)
             
             # 余分な空行を整理
@@ -382,6 +495,9 @@ def extract_japanese_text_enhanced(doc_path, output_path):
             # XMLタグや不要なマークアップを除去
             consolidated_text = re.sub(r'<.*?>', '', consolidated_text)
             consolidated_text = re.sub(r'\\+[a-zA-Z]+', '', consolidated_text)
+            
+            # 明らかなバイナリノイズや長すぎるノイズ文字列を削除
+            consolidated_text = re.sub(r'[^\x20-\x7E\u3000-\u30FF\u4E00-\u9FFF\u3040-\u309F\uFF00-\uFF9F\u2000-\u206F\n]{10,}', '', consolidated_text)
             
             # 「生命保険協会ガイドライン」というキーワードが含まれているかチェック
             if '生命保険協会ガイドライン' in consolidated_text:
@@ -779,13 +895,15 @@ def extract_text_with_powershell(doc_path, output_path):
         except Exception as e:
             print(f"一時スクリプトファイルの削除に失敗: {str(e)}")
 
-def process_directory(directory_path, recursive=True):
+def process_directory(directory_path, recursive=True, force_utf8=False, use_sjis=False):
     """
     指定したディレクトリ内のすべてのWordファイル（.docと.docx）をテキストに変換する
     
     Args:
         directory_path (str): 処理するディレクトリのパス
         recursive (bool): サブディレクトリも再帰的に処理するかどうか
+        force_utf8 (bool): UTF-8エンコーディングを優先的に使用するかどうか
+        use_sjis (bool): Shift-JISエンコーディングを優先的に使用するかどうか
     
     Returns:
         tuple: (成功したファイルのリスト, 失敗したファイルのリスト)
@@ -833,7 +951,7 @@ def process_directory(directory_path, recursive=True):
             doc_file_str = str(doc_file)
             print(f"処理中: {doc_file_str}")
             try:
-                output_path = convert_doc_to_text(doc_file_str)
+                output_path = convert_doc_to_text(doc_file_str, force_utf8=force_utf8, use_sjis=use_sjis)
                 if output_path:
                     print(f"  変換完了: {output_path}")
                     success_files.append(doc_file_str)
@@ -1104,37 +1222,63 @@ def extract_text_doc_to_docx(doc_path, output_path):
 
 def main():
     if len(sys.argv) < 2:
-        print("使用方法: python word_to_text_converter.py <マニュアル集のディレクトリパス> [--no-recursive]")
+        print("使用方法: python word_to_text_converter.py <マニュアル集のディレクトリパス> [--no-recursive] [--force-utf8] [--use-sjis]")
         return
     
     directory_path = sys.argv[1]
     recursive = True
+    force_utf8 = False
+    use_sjis = False
     
-    if len(sys.argv) > 2 and sys.argv[2] == "--no-recursive":
-        recursive = False
+    if len(sys.argv) > 2:
+        for arg in sys.argv[2:]:
+            if arg == "--no-recursive":
+                recursive = False
+            elif arg == "--force-utf8":
+                force_utf8 = True
+            elif arg == "--use-sjis":
+                use_sjis = True
     
     if not os.path.exists(directory_path):
         print(f"エラー: 指定されたパス '{directory_path}' が存在しません。")
         return
     
-    if not os.path.isdir(directory_path):
-        print(f"エラー: 指定されたパス '{directory_path}' はディレクトリではありません。")
-        return
-    
-    print(f"ディレクトリ '{directory_path}' 内のWordファイルをテキストに変換します...")
-    print(f"再帰的処理: {'有効' if recursive else '無効'}")
-    
-    success_files, failed_files = process_directory(directory_path, recursive)
-    
-    print("\n変換処理が完了しました。")
-    print(f"成功: {len(success_files)}ファイル")
-    print(f"失敗: {len(failed_files)}ファイル")
-    
-    if failed_files:
-        print("\n失敗したファイル:")
-        for file in failed_files:
-            print(f"  - {file}")
-        print("\n上記のファイルの変換に失敗しました。ファイルが開かれていないか、破損していないか確認してください。")
+    if os.path.isdir(directory_path):
+        print(f"ディレクトリ '{directory_path}' 内のWordファイルをテキストに変換します...")
+        print(f"再帰的処理: {'有効' if recursive else '無効'}")
+        print(f"UTF-8優先: {'有効' if force_utf8 else '無効'}")
+        print(f"Shift-JIS優先: {'有効' if use_sjis else '無効'}")
+        
+        success_files, failed_files = process_directory(directory_path, recursive, force_utf8, use_sjis)
+        
+        print("\n変換処理が完了しました。")
+        print(f"成功: {len(success_files)}ファイル")
+        print(f"失敗: {len(failed_files)}ファイル")
+        
+        if failed_files:
+            print("\n失敗したファイル:")
+            for file in failed_files:
+                print(f"  - {file}")
+            print("\n上記のファイルの変換に失敗しました。ファイルが開かれていないか、破損していないか確認してください。")
+    else:
+        # 単一ファイルの処理
+        file_path = directory_path
+        print(f"ファイル '{file_path}' をテキストに変換します...")
+        print(f"UTF-8優先: {'有効' if force_utf8 else '無効'}")
+        print(f"Shift-JIS優先: {'有効' if use_sjis else '無効'}")
+        
+        if file_path.lower().endswith('.docx'):
+            output_path = convert_docx_to_text(file_path)
+        elif file_path.lower().endswith('.doc'):
+            output_path = convert_doc_to_text(file_path, force_utf8=force_utf8, use_sjis=use_sjis)
+        else:
+            print(f"エラー: サポートされていないファイル形式です。'.doc'または'.docx'ファイルを指定してください。")
+            return
+            
+        if output_path:
+            print(f"変換完了: {output_path}")
+        else:
+            print(f"変換失敗: {file_path}")
 
 if __name__ == "__main__":
     main() 
